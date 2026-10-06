@@ -1,4 +1,9 @@
 import {ACC,ROLES,CHAPTERS,WORDS,GHOSTS,CRED,PROJECTS} from './content.js';
+import { inject } from '@vercel/analytics';
+
+// Initialize Vercel Analytics
+inject();
+
 document.documentElement.style.setProperty('--ac',ACC);
 const onScroll=f=>{let t=0;addEventListener('scroll',()=>{if(!t){t=1;requestAnimationFrame(()=>{t=0;f()})}},{passive:true})};
 const calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
