@@ -1,0 +1,542 @@
+import { ACC, ROLES, CHAPTERS, WORDS, GHOSTS, CRED, PROJECTS } from './content.js';
+
+// Set the accent color globally for CSS variables
+document.documentElement.style.setProperty('--ac', ACC);
+
+/**
+ * Utility to run a function once on the next scroll event
+ * using requestAnimationFrame for performance.
+ */
+const onScroll = (callback) => {
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            ticking = true;
+            requestAnimationFrame(() => {
+                ticking = false;
+                callback();
+            });
+        }
+    }, { passive: true });
+};
+
+// Accessibility check for motion preference
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---- Helpers ---- */
+const getElementById = (id) => document.getElementById(id);
+const getRandomRange = (min, max) => min + Math.random() * (max - min);
+
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
+let cursorX = mouseX;
+let cursorY = mouseY;
+
+window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+});
+
+// Smooth custom cursor animation
+(function animateCursor() {
+    cursorX += (mouseX - cursorX) * 0.25;
+    cursorY += (mouseY - cursorY) * 0.25;
+    const cursor = getElementById('cur');
+    if (cursor) {
+        cursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+    }
+    requestAnimationFrame(animateCursor);
+})();
+
+/**
+ * Intersection Observer wrapper for triggering animations
+ */
+const observeIntersection = (element, callback) => {
+    const observer = new IntersectionObserver((entries, observerInstance) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                callback(entry.target);
+                observerInstance.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.3 });
+    observer.observe(element);
+};
+
+/**
+ * Simple typewriter effect
+ */
+function typeText(element, text, speed, callback) {
+    let index = 0;
+    function step() {
+        element.textContent = text.slice(0, index++);
+        if (index <= text.length) {
+            setTimeout(step, speed);
+        } else if (callback) {
+            callback();
+        }
+    }
+    step();
+}
+
+/* ---- Hero Section: Halftone Canvas Effect ---- */
+(function initHeroCanvas() {
+    const canvas = getElementById('hc');
+    const ctx = canvas.getContext('2d');
+    const gridSize = window.innerWidth < 700 ? 16 : 12;
+    let width, height, time = 0;
+    let lastMouseX = -999, lastMouseY = -999;
+
+    const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = canvas.clientWidth;
+        height = canvas.clientHeight;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    window.addEventListener('mousemove', (e) => {
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+    });
+
+    function render() {
+        // Stop rendering if motion is reduced, scrolled too far, or page is hidden
+        if (prefersReducedMotion || window.scrollY > window.innerHeight * 3.4 || document.hidden) {
+            requestAnimationFrame(render);
+            return;
+        }
+
+        ctx.clearRect(0, 0, width, height);
+        time += 0.012;
+
+        for (let y = gridSize / 2; y < height; y += gridSize) {
+            for (let x = gridSize / 2; x < width; x += gridSize) {
+                // Complex wave function to create organic patterns
+                let value = (
+                    Math.sin(x * 0.011 + time) +
+                    Math.sin(y * 0.015 - time * 0.8) +
+                    Math.sin((x + y) * 0.008 + time * 0.5) +
+                    Math.sin(Math.hypot(x - width / 2, y - height / 2) * 0.01 - time)
+                ) / 8 + 0.5;
+
+                // Interaction: increase value near mouse cursor
+                const dist = Math.hypot(x - lastMouseX, y - lastMouseY);
+                if (dist < 150) {
+                    value = Math.min(1, value + (1 - dist / 150) * 0.4);
+                }
+
+                ctx.fillStyle = `rgba(${ACC}, ${0.25 + value * 0.75})`;
+
+                if (value < 0.35) {
+                    // Draw small dashes for low values
+                    const size = 1 + gridSize * 0.3 * value / 0.35;
+                    ctx.fillRect(x - size, y - 0.5, size * 2, 1);
+                    ctx.fillRect(x - 0.5, y - size, 1, size * 2);
+                } else if (value < 0.7) {
+                    // Draw circles for medium values
+                    ctx.beginPath();
+                    ctx.arc(x, y, (value - 0.3) * gridSize * 0.9, 0, 6.283);
+                    ctx.fill();
+                } else {
+                    // Draw squares for high values
+                    const size = gridSize * (0.55 + 0.4 * value);
+                    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+                }
+            }
+        }
+        requestAnimationFrame(render);
+    }
+    render();
+})();
+
+/* ---- Intro Card: Scroll-Grow & Scramble ---- */
+(function initIntroCard() {
+    const section = getElementById('intro');
+    const card = getElementById('ci');
+    const hiText = getElementById('hi');
+    const CHARS = '!<>-_\\/[]{}=+*^?#';
+    const FINAL_TEXT = 'Hi!';
+    let isBusy = false;
+
+    function scramble() {
+        if (isBusy) return;
+        isBusy = true;
+        let iteration = 0;
+
+        const timer = setInterval(() => {
+            hiText.textContent = [...FINAL_TEXT].map((char, index) => {
+                return index < iteration / 4 ? char : CHARS[Math.random() * CHARS.length | 0];
+            }).join('');
+
+            if (++iteration > FINAL_TEXT.length * 4 + 2) {
+                clearInterval(timer);
+                hiText.textContent = FINAL_TEXT;
+                isBusy = false;
+            }
+        }, 45);
+    }
+
+    const updateCardSize = () => {
+        const rect = section.getBoundingClientRect();
+        // Calculate growth based on scroll position relative to section height
+        const progress = Math.min(1, Math.max(0, -rect.top / (rect.height - window.innerHeight)));
+        const eased = progress * progress * (3 - 2 * progress);
+
+        const targetWidth = Math.min(640, window.innerWidth * 0.9);
+        const targetHeight = targetWidth * 0.5625;
+
+        card.style.width = targetWidth + (window.innerWidth - targetWidth) * eased + 'px';
+        card.style.height = targetHeight + (window.innerHeight - targetHeight) * eased + 'px';
+        card.style.borderRadius = 16 * (1 - eased) + 'px';
+    };
+
+    onScroll(updateCardSize);
+    window.addEventListener('resize', updateCardSize);
+    updateCardSize();
+
+    observeIntersection(card, scramble);
+    card.addEventListener('mouseenter', scramble);
+
+    // Occasional auto-scramble when in view
+    setInterval(() => {
+        const rect = card.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+            scramble();
+        }
+    }, 5000);
+})();
+
+/* ---- Tick Field Canvas ---- */
+(function initTickField() {
+    const canvas = getElementById('tc');
+    const ctx = canvas.getContext('2d');
+    const GRID_SIZE = 90;
+    let width, height, angles = [];
+
+    const resize = () => {
+        width = canvas.width = canvas.clientWidth;
+        height = canvas.height = canvas.clientHeight;
+        angles = new Array(Math.ceil(width / GRID_SIZE) * Math.ceil(height / GRID_SIZE)).fill(0.8);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+
+    function render() {
+        const rect = canvas.getBoundingClientRect();
+        const relativeMouseX = mouseX - rect.left;
+        const relativeMouseY = mouseY - rect.top;
+
+        if (prefersReducedMotion || rect.bottom < 0 || rect.top > window.innerHeight) {
+            requestAnimationFrame(render);
+            return;
+        }
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.strokeStyle = `rgba(${ACC}, 0.6)`;
+        ctx.lineWidth = 2;
+
+        let index = 0;
+        for (let y = GRID_SIZE / 2; y < height; y += GRID_SIZE) {
+            for (let x = GRID_SIZE / 2; x < width; x += GRID_SIZE, index++) {
+                // Calculate angle towards mouse
+                const targetAngle = Math.atan2(relativeMouseY - y, relativeMouseX - x);
+                let diff = ((targetAngle - angles[index] + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+
+                angles[index] += diff * 0.1;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angles[index]);
+                ctx.beginPath();
+                ctx.moveTo(-12, 0);
+                ctx.lineTo(12, 0);
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+        requestAnimationFrame(render);
+    }
+    render();
+})();
+
+observeIntersection(getElementById('abt'), (el) => el.classList.add('in'));
+
+/* ---- Storybook Interaction ---- */
+let currentPageIndex = -1;
+
+function updateBook(shouldAnimate) {
+    const oldRightContent = shouldAnimate && !getElementById('bk').hidden ? getElementById('pr').innerHTML : null;
+
+    // Left Page: Index
+    const leftPage = getElementById('pl');
+    leftPage.innerHTML = '<h4>INDEX</h4>' + CHAPTERS.map((chapter, i) =>
+        `<button class="idx ${i == currentPageIndex ? 'on' : ''}" data-i="${i}">
+            ${String(i + 1).padStart(2, '0')}. ${chapter[0]}
+            <small>p. 0${i + 1}</small>
+        </button>`
+    ).join('');
+
+    // Right Page
+    const rightPage = getElementById('pr');
+    rightPage.className = 'pg r';
+    const closeButton = '<button class="x" aria-label="Close book">×</button>';
+
+    if (currentPageIndex < 0) {
+        rightPage.innerHTML = closeButton + '<h4 style="margin-top:34px">Start reading</h4><p style="text-align:center;margin-top:30px">Pick a chapter from the index, or click this page to turn it.</p>';
+    } else if (currentPageIndex >= CHAPTERS.length) {
+        rightPage.innerHTML = closeButton + '<div class="end">The End<button id="again">↻ Read Again</button></div>';
+    } else {
+        rightPage.innerHTML = closeButton + `<h4 style="margin-top:34px">${CHAPTERS[currentPageIndex][0]}</h4><p>${CHAPTERS[currentPageIndex][1]}</p>`;
+    }
+
+    // Page turn animation
+    if (oldRightContent !== null) {
+        const leaf = document.createElement('div');
+        leaf.className = 'leaf';
+        leaf.innerHTML = `<div class="pg r lf">${oldRightContent}</div><div class="pg l lb"></div>`;
+        getElementById('bk').appendChild(leaf);
+        leaf.onanimationend = () => leaf.remove();
+    }
+}
+
+getElementById('pl').onclick = (e) => {
+    const btn = e.target.closest('.idx');
+    if (btn) {
+        currentPageIndex = +btn.dataset.i;
+        updateBook(true);
+    }
+};
+
+getElementById('pr').onclick = (e) => {
+    if (e.target.closest('.x')) {
+        currentPageIndex = -1;
+        updateBook();
+        getElementById('bk').hidden = true;
+        getElementById('cv').hidden = false;
+        return;
+    }
+    if (e.target.id == 'again') {
+        currentPageIndex = -1;
+    } else if (currentPageIndex < CHAPTERS.length) {
+        currentPageIndex++;
+    }
+    updateBook(true);
+};
+
+getElementById('cv').onclick = () => {
+    const cover = getElementById('cv');
+    cover.classList.add('opening');
+    setTimeout(() => {
+        cover.hidden = true;
+        cover.classList.remove('opening');
+        getElementById('bk').hidden = false;
+        updateBook();
+    }, 450);
+};
+
+updateBook();
+
+/* ---- Floating Keywords & Scroll Line ---- */
+WORDS.forEach(([text, color]) => {
+    const span = document.createElement('span');
+    span.className = 'w';
+    span.textContent = text;
+    span.style.cssText = `
+        left: ${getRandomRange(4, 86)}%;
+        top: ${getRandomRange(4, 90)}%;
+        color: ${color};
+        animation-duration: ${getRandomRange(4, 9)}s;
+        animation-delay: ${getRandomRange(0, 4)}s;
+    `;
+    getElementById('float').appendChild(span);
+});
+
+const scrollLine = getElementById('sl');
+const updateScrollLine = () => {
+    const rect = getElementById('float').getBoundingClientRect();
+    const progress = Math.min(1, Math.max(0, (1 - rect.top / window.innerHeight) * 1.5 - 0.2));
+    scrollLine.style.opacity = progress;
+    scrollLine.style.letterSpacing = (1 - progress) * 0.5 + 'em';
+};
+
+onScroll(updateScrollLine);
+updateScrollLine();
+
+/* ---- Projects Cards Rendering ---- */
+PROJECTS.forEach((project, i) => {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+        <div class="lab">Project ${i + 1}</div>
+        <div class="pc">
+            <div class="shot" style="--g:${project.g}">
+                <b>COMING SOON</b>
+                ${project.t.toLowerCase().replace(/ /g, '_')}
+            </div>
+            <h3>${project.t}</h3>
+            <div class="sub">${project.s}</div>
+            <ul>${project.b.map(bullet => `<li>${bullet}</li>`).join('')}</ul>
+            <div class="tags">${project.tg.map(tag => `<span>${tag}</span>`).join('')}</div>
+            <a class="ext" href="${project.u}" target="_blank" rel="noopener" aria-label="Open ${project.t}">↗</a>
+        </div>
+    `;
+    getElementById('grid').appendChild(wrapper);
+});
+
+/* ---- Ghost Cursors Interaction ---- */
+(function initGhostCursors() {
+    const container = getElementById('projects');
+    const ghosts = GHOSTS.map(([name, color], i) => {
+        const element = document.createElement('div');
+        element.className = 'gh';
+        element.innerHTML = `
+            <svg width="14" height="16" viewBox="0 0 18 20">
+                <path d="M1 1l14 8-6 2-3 7z" fill="${color}"/>
+            </svg>
+            <i style="background:${color}; box-shadow:0 0 14px ${color}">${name}</i>
+        `;
+        container.appendChild(element);
+
+        // Define anchor points for drift
+        const anchors = [
+            [0.03, 0.1], [0.82, 0.18], [0.02, 0.42],
+            [0.84, 0.55], [0.03, 0.72], [0.8, 0.8]
+        ];
+        const anchor = anchors[i % 6];
+        const startX = container.clientWidth * anchor[0];
+        const startY = container.clientHeight * anchor[1];
+
+        return {
+            element,
+            x: startX,
+            y: startY,
+            anchorX: startX,
+            anchorY: startY,
+            targetX: startX,
+            targetY: startY,
+            velocity: getRandomRange(10, 18)
+        };
+    });
+
+    let lastTimestamp = performance.now();
+
+    function animate(now) {
+        const rect = container.getBoundingClientRect();
+        if (prefersReducedMotion || rect.bottom < 0 || rect.top > window.innerHeight) {
+            lastTimestamp = now;
+            requestAnimationFrame(animate);
+            return;
+        }
+
+        const deltaTime = Math.min(0.05, (now - lastTimestamp) / 1000);
+        lastTimestamp = now;
+
+        ghosts.forEach(ghost => {
+            const dx = ghost.targetX - ghost.x;
+            const dy = ghost.targetY - ghost.y;
+            const distance = Math.hypot(dx, dy);
+
+            if (distance < 4) {
+                // Pick a new target near the anchor
+                ghost.targetX = ghost.anchorX + getRandomRange(-40, 40);
+                ghost.targetY = ghost.anchorY + getRandomRange(-40, 40);
+            } else {
+                ghost.x += (dx / distance) * ghost.velocity * deltaTime;
+                ghost.y += (dy / distance) * ghost.velocity * deltaTime;
+            }
+
+            ghost.element.style.transform = `translate(${ghost.x}px, ${ghost.y}px)`;
+        });
+
+        requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+})();
+
+/* ---- Footer Accordion & Contact Form ---- */
+CRED.forEach(([title, description]) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `
+        <button aria-expanded="false">
+            <span>+&nbsp;&nbsp;${title}</span>
+            <span>⌄</span>
+        </button>
+        <div>${description}</div>
+    `;
+
+    row.firstChild.onclick = () => {
+        const isOpen = row.classList.contains('on');
+
+        // Close all other rows
+        document.querySelectorAll('.row').forEach(item => {
+            item.classList.remove('on');
+            item.firstChild.setAttribute('aria-expanded', 'false');
+        });
+
+        if (!isOpen) {
+            row.classList.add('on');
+            row.firstChild.setAttribute('aria-expanded', 'true');
+        }
+    };
+    getElementById('ac').appendChild(row);
+});
+
+getElementById('mf').onsubmit = (e) => {
+    e.preventDefault();
+    const emailValue = getElementById('em').value.trim();
+
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(emailValue)) {
+        getElementById('msg').textContent = 'Enter a valid email address.';
+        return;
+    }
+
+    const mailtoUrl = `mailto:abhijaijaiss@gmail.com?subject=Hello%20Abhijai&body=From:%20${encodeURIComponent(emailValue)}`;
+    window.location.href = mailtoUrl;
+    getElementById('msg').textContent = 'Opening your mail app. Thanks for connecting!';
+};
+
+/* ---- Scroll-linked SVG path animation ---- */
+(function initPathAnimation() {
+    const storySection = getElementById('story');
+    const pathElement = getElementById('tp');
+
+    const updatePath = () => {
+        const rect = storySection.getBoundingClientRect();
+        // Calculate dash offset based on section position
+        const offset = 1 - Math.min(1, Math.max(0, (window.innerHeight * 0.35 - rect.top) / (rect.height * 0.45)));
+        pathElement.style.strokeDashoffset = offset;
+    };
+
+    onScroll(updatePath);
+    updatePath();
+})();
+
+/* ---- Projects heading: Typing effect with random chars ---- */
+(function initProjectsTyping() {
+    const element = getElementById('ph');
+    const text = 'Projects';
+    const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+    element.textContent = ' ';
+
+    observeIntersection(element, () => {
+        let index = 0;
+        const timer = setInterval(() => {
+            index++;
+            element.textContent = text.slice(0, index) +
+                (index < text.length ? alphabet[Math.random() * 26 | 0] : '') + '_';
+
+            if (index >= text.length) {
+                clearInterval(timer);
+                setTimeout(() => {
+                    element.textContent = text;
+                }, 800);
+            }
+        }, 90);
+    });
+})();
